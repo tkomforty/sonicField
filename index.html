@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sonic Visualizer</title>
+    <style>
+        /* Base styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #000;
+            color: #fff;
+        }
+
+        /* Make the canvas fill the entire viewport and sit behind other content */
+        canvas {
+            display: block;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            z-index: 0 !important;
+        }
+
+        /* Overlay content - repositioned to left side with more transparency */
+        .content-overlay {
+            position: fixed;
+            z-index: 2;
+            height: 100vh;
+            width: 300px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 2rem;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.3);
+            pointer-events: none;
+        }
+
+        /* Panel styling - more transparent than before */
+        .glass-panel {
+            background-color: rgba(5, 15, 35, 0.3);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+
+        /* Typography */
+        h1 {
+            font-size: 2.2rem;
+            margin-bottom: 0.5rem;
+            color: #3F51B5;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        h2 {
+            font-size: 1.6rem;
+            margin-bottom: 1rem;
+            color: #3F51B5;
+        }
+
+        p {
+            margin-bottom: 0.8rem;
+            line-height: 1.6;
+            color: rgb(175,171,184);
+        }
+
+        /* Section styling */
+        header, footer {
+            width: 100%;
+            text-align: center;
+        }
+
+        .info-section {
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Spacing between sections */
+        header, .info-section, footer {
+            margin-bottom: 1.5rem;
+        }
+
+        /* Animation for glass panels - subtle version */
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.1); }
+            70% { box-shadow: 0 0 0 8px rgba(255, 255, 255, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+        }
+
+        .glass-panel {
+            animation: pulse 5s infinite;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .content-overlay {
+                width: 250px;
+                padding: 1rem;
+            }
+            
+            h1 {
+                font-size: 1.8rem;
+            }
+            
+            h2 {
+                font-size: 1.3rem;
+            }
+            
+            .glass-panel {
+                padding: 1rem;
+            }
+        }
+    </style>
+    
+    <!-- Load P5.js and Tone.js libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+</head>
+<body>
+    <!-- Content overlay -->
+    <div class="content-overlay">
+        <header>
+            <div class="glass-panel">
+                <h1>sonic field</h1>
+                <p>interactive audio/visual</p>
+            </div>
+        </header>
+        
+        <section class="info-section">
+            <div class="glass-panel">
+                <h2>move & explore</h2>
+                <p>click to generate bursts</p>
+              
+            </div>
+        </section>
+              <section class="info-section">
+            <div class="glass-panel">
+                <h2>tkomforty 2025</h2>
+               
+              
+            </div>
+        </section>
+        
+        <footer>
+         
+        </footer>
+    </div>
+  
+  <!-- Lightweight sketch -->
+    <script>
+        let particles = [];
+        const MAX_PARTICLES = 2000;
+        let audioInitialized = false;
+        let synth, harmonySynth, kickDrum;
+        let primaryVolume, harmonyVolume, kickVolume;
+        let noiseOffsetX = 0;
+        let noiseOffsetY = 10000; // Different starting offset for variation
+        let time = 0;
+        let lastHarmonyPosition = { x: 0, y: 0 };
+        let masterBPM = 120; // Master tempo
+        let beatDuration; // Will be calculated based on BPM
+        
+        function setup() {
+            // Create a 2D canvas
+            const canvas = createCanvas(windowWidth, windowHeight);
+            canvas.position(0, 0);
+            canvas.style('z-index', '0');
+            
+            // Initial particles
+            for (let i = 0; i < 500; i++) {
+                createParticle(random(width), random(height));
+            }
+            
+            // Initialize audio on first click
+            document.addEventListener('click', initAudio);
+            
+            // Start Tone Transport
+            Tone.Transport.start();
+        }
+      
+      function createParticle(x, y, isClick = false, isHarmony = false) {
+            // Limit total particles for performance
+            if (particles.length >= MAX_PARTICLES) {
+                // Remove oldest particle
+                particles.shift();
+            }
+            
+            // Choose color based on type (main click, harmony, or background)
+            let particleColor;
+            if (isHarmony) {
+                // Harmony particles - bluish/purplish tones
+                particleColor = color(
+                    random(100, 150),
+                    random(100, 200),
+                    random(200, 255),
+                    180
+                );
+            } else if (isClick) {
+                // Main click particles - warmer colors
+                particleColor = color(
+                    random(200, 255),
+                    random(150, 220),
+                    random(50, 150),
+                    180
+                );
+            } else {
+                // Background particles - varied blues
+                particleColor = color(
+                    random(80, 150),
+                    random(80, 150),
+                    random(200, 255),
+                    120
+                );
+            }
+            
+            // Create particle with appropriate properties
+            const particle = {
+                pos: createVector(x, y),
+                vel: createVector(random(-1, 1), random(-1, 1)),
+                size: isClick || isHarmony ? random(3, 6) : random(1, 3),
+                color: particleColor,
+                life: isClick || isHarmony ? 60 : random(100, 2000),
+                maxLife: isClick || isHarmony ? 60 : random(100, 1200),
+                // Add noise field offsets - unique for each particle
+                noiseOffsetX: random(0, 10000),
+                noiseOffsetY: random(0, 10000),
+                // Add unique flow parameters
+                flowIntensity: random(0.2, 1),
+                flowSpeed: random(0.001, 0.005),
+                // Add swirl effect
+                swirlFactor: random(-0.2, 0.2),
+                swirlFrequency: random(0.01, 0.5),
+                // Flag for type
+                isClick: isClick,
+                isHarmony: isHarmony
+            };
+            
+            particles.push(particle);
+            return particle;
+        }
+        
+        function draw() {
+            // Update time
+            time += 0.01;
+            
+            // Semi-transparent background for trail effect
+            background(0, 10, 30, 20);
+            
+            // Update and render particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                
+                // Update life
+                p.life--;
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+                
+                // Calculate alpha based on remaining life
+                const alpha = map(p.life, 0, p.maxLife, 0, 100);
+                
+                // Non-linear motion for background particles
+                if (!p.isClick && !p.isHarmony) {
+                    // Use Perlin noise flow field for more natural movement
+                    const noiseX = p.noiseOffsetX + frameCount * p.flowSpeed;
+                    const noiseY = p.noiseOffsetY + frameCount * p.flowSpeed;
+                    
+                    // Get noise value
+                    const noiseValue = noise(noiseX, noiseY);
+                    const angle = noiseValue * TWO_PI * 4; // Full circle * 4
+                    
+                    // Calculate flow direction
+                    const flowX = cos(angle) * p.flowIntensity;
+                    const flowY = sin(angle) * p.flowIntensity;
+                    
+                    // Add swirl effect based on distance from center
+                    const centerX = width / 2;
+                    const centerY = height / 2;
+                    const dx = p.pos.x - centerX;
+                    const dy = p.pos.y - centerY;
+                    const distanceFromCenter = sqrt(dx * dx + dy * dy);
+                    const distanceFactor = map(distanceFromCenter, 0, width / 2, 1, 0.1);
+                    
+                    // Swirl component (perpendicular to center direction)
+                    const swirlX = -dy * p.swirlFactor * sin(time * p.swirlFrequency) * distanceFactor;
+                    const swirlY = dx * p.swirlFactor * sin(time * p.swirlFrequency) * distanceFactor;
+                    
+                    // Apply forces
+                    p.vel.x = p.vel.x * 0.95 + (flowX + swirlX) * 0.05;
+                    p.vel.y = p.vel.y * 0.95 + (flowY + swirlY) * 0.05;
+                }
+                
+                // Subtle acceleration toward mouse when nearby
+                const mousePos = createVector(mouseX, mouseY);
+                const dir = p5.Vector.sub(mousePos, p.pos);
+                const d = dir.mag();
+                
+                if (d < 100) {
+                    dir.normalize();
+                    dir.mult(0.1);
+                    p.vel.add(dir);
+                }
+                
+                // Limit velocity
+                p.vel.limit(2);
+                
+                // Update position
+                p.pos.add(p.vel);
+                
+                // Bounce off edges of screen
+                if (p.pos.x < 0 || p.pos.x > width) p.vel.x *= -1;
+                if (p.pos.y < 0 || p.pos.y > height) p.vel.y *= -1;
+                
+                // Draw the particle
+                noStroke();
+                
+                // Unique glow effect for harmony particles
+                if (p.isHarmony) {
+                    // Add a subtle glow for harmony particles
+                    let glowSize = p.size * 2;
+                    let glowColor = color(red(p.color), green(p.color), blue(p.color), alpha * 0.2);
+                    fill(glowColor);
+                    ellipse(p.pos.x, p.pos.y, glowSize);
+                }
+                
+                // Draw the main particle
+                const c = color(red(p.color), green(p.color), blue(p.color), 5 * alpha);
+                fill(c);
+                ellipse(p.pos.x, p.pos.y, p.size);
+            }
+            
+            // Occasionally add particles
+            if (frameCount % 10 === 0 && particles.length < MAX_PARTICLES) {
+                createParticle(random(width), random(height));
+            }
+        }
+        
+        function mouseMoved() {
+            // Add particles occasionally when mouse moves
+            if (frameCount % 5 === 0 && mouseX > 0 && mouseY > 0) {
+                createParticle(
+                    mouseX + random(-10, 10),
+                    mouseY + random(-10, 10)
+                );
+            }
+        }
+      
+      function createParticleBurst(x, y, count, isHarmony) {
+            // Create a burst of particles
+            for (let i = 0; i < count; i++) {
+                // Create particle at position
+                const p = createParticle(x, y, !isHarmony, isHarmony);
+                
+                // Particles explode outward with strong force
+                const angle = random(TWO_PI);
+                const speed = random(5, 15); // High speed for outward flow
+                
+                // Set velocity vector
+                p.vel.x = cos(angle) * speed;
+                p.vel.y = sin(angle) * speed;
+                
+                // Add some randomness to particle sizes
+                p.size = random(2, 8);
+                
+                // Random lifespans for varied fade-out
+                p.life = random(30, 90);
+                p.maxLife = p.life;
+            }
+        }
+        
+        function mousePressed() {
+            // Create a burst of particles at mouse position for main click
+            createParticleBurst(mouseX, mouseY, 200, false);
+            
+            // Play sound if audio is initialized
+            if (audioInitialized) {
+                playTone();
+            }
+        }
+        
+ function initAudio() {
+            if (audioInitialized || typeof Tone === 'undefined') return;
+            
+            try {
+                // Prevent multiple initialization attempts
+                document.removeEventListener('click', initAudio);
+                
+                // Use Tone.js start method to initialize audio context
+                Tone.start().then(() => {
+                    console.log("Tone started successfully");
+                    
+                    // Calculate beat duration based on BPM
+                    beatDuration = Tone.Time('4n').toSeconds();
+                    
+                    // Create volume controls - independent for each synth
+                    primaryVolume = new Tone.Volume(-10); // Default volume (in dB)
+                    harmonyVolume = new Tone.Volume(-15); // Slightly quieter harmony
+                    kickVolume = new Tone.Volume(-15); // Kick drum volume
+                    
+                    // Create effects chain
+                    const reverb = new Tone.Reverb({
+                        decay: 5,
+                        wet: 0.6
+                    }).toDestination();
+                    
+                    const delay = new Tone.FeedbackDelay({
+                        delayTime: 0.3,
+                        feedback: 0.4,
+                        wet: 0.4
+                    }).connect(reverb);
+                    
+                    // Create kick drum with more sophisticated sound
+                    kickDrum = new Tone.MembraneSynth({
+                        pitchDecay: 0.08,
+                        octaves: 2,
+                        envelope: {
+                            attack: 0.001,
+                            decay: 0.4,
+                            sustain: 0.1,
+                            release: 0.3
+                        },
+                        oscillator: {
+                            type: 'sine',
+                            modulationType: 'sine',
+                            modulationIndex: 3,
+                            modulationFrequency: 0.3
+                        }
+                    }).connect(kickVolume);
+                    
+                    // Add a subtle distortion for more character
+                    const distortion = new Tone.Distortion({
+                        distortion: 0.2,
+                        wet: 0.1
+                    }).connect(kickVolume);
+                    
+                    // Add a low-pass filter for smoothness
+                    const filter = new Tone.Filter({
+                        type: 'lowpass',
+                        frequency: 200,
+                        rolloff: -12,
+                        Q: 1
+                    }).connect(distortion);
+                    
+                    // Modify kick drum connection
+                    kickDrum.connect(filter);
+                    
+                    // Create main synth
+                    synth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: {
+                            type: 'sine'
+                        },
+                        envelope: {
+                            attack: 0.02,
+                            decay: 0.1,
+                            sustain: 0.3,
+                            release: 1
+                        }
+                    }).connect(primaryVolume);
+                    
+                    // Create harmony synth with different timbre
+                    harmonySynth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: {
+                            type: 'triangle' 
+                        },
+                        envelope: {
+                            attack: 0.05,
+                            decay: 0.2,
+                            sustain: 0.3,
+                            release: 1.5
+                        }
+                    }).connect(harmonyVolume);
+                    
+                    // Connect volume controls to effects
+                    primaryVolume.connect(delay);
+                    harmonyVolume.connect(delay);
+                    kickVolume.connect(delay);
+                    
+                    // Set up kick drum pattern with more interesting rhythm
+                    kickPattern = new Tone.Sequence((time) => {
+                        // Vary the kick slightly for more organic feel
+                        const pitches = ['C2', 'D2', 'B1'];
+                        const randomPitch = pitches[floor(random(pitches.length))];
+                        
+                        // Randomize velocity for more natural sound
+                        const velocity = random(0.6, 1);
+                        
+                        kickDrum.triggerAttackRelease(randomPitch, '8n', time, velocity);
+                    }, [0, 2, [1.5, 2.5]], '1n');
+                    
+                    // Start the kick pattern
+                    kickPattern.start(0);
+                    Tone.Transport.bpm.value = masterBPM;
+                    Tone.Transport.start();
+                    
+                    // Set default volumes
+                    primaryVolume.volume.value = -10; // Main synth (in dB)
+                    harmonyVolume.volume.value = -15; // Harmony synth (in dB)
+                    kickVolume.volume.value = -12; // Kick drum (in dB)
+                    
+                    // Randomize harmony volume based on mouse X position
+                    document.addEventListener('mousemove', (e) => {
+                        if (harmonyVolume) {
+                            const harmonyVol = map(e.clientX, 0, window.innerWidth, -20, -8);
+                            harmonyVolume.volume.rampTo(harmonyVol, 0.1);
+                        }
+                    });
+                    
+                    // Mark audio as initialized
+                    audioInitialized = true;
+                    
+                    console.log("Audio initialized with independent volume controls");
+                }).catch(err => {
+                    console.error("Error starting Tone:", err);
+                    alert("Could not initialize audio. Please interact with the page to enable sound.");
+                });
+            } catch (e) {
+                console.error("Audio initialization failed:", e);
+                alert("Could not initialize audio. Please try again.");
+            }
+        }
+        
+                function playTone() {
+            // Expanded safety checks and more robust note generation
+            if (!synth || !harmonySynth) {
+                console.log("Synths not available yet");
+                return;
+            }
+            
+            // Fail-safe note and harmony collections
+            const notes = [
+                ['C4', 'E4', 'G4', 'A4'],
+                ['D4', 'F4', 'A4', 'B4'],
+                ['E4', 'G4', 'B4', 'C5'],
+                ['F4', 'A4', 'C5', 'D5'],
+                ['G4', 'B4', 'D5', 'E5'],
+                ['A4', 'C5', 'E5', 'F5']
+            ];
+            
+            const fallbackNotes = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4'];
+            
+            const harmonies = {
+                'C4': [{ note: 'E4' }, { note: 'G4' }, { note: 'A4' }],
+                'D4': [{ note: 'F4' }, { note: 'A4' }, { note: 'B4' }],
+                'E4': [{ note: 'G4' }, { note: 'B4' }, { note: 'C5' }],
+                'F4': [{ note: 'A4' }, { note: 'C5' }, { note: 'D5' }],
+                'G4': [{ note: 'B4' }, { note: 'D5' }, { note: 'E5' }],
+                'A4': [{ note: 'C5' }, { note: 'E5' }, { note: 'F5' }]
+            };
+            
+            let selectedNote, possibleHarmonies;
+            
+            // Robust note selection with fallback
+            try {
+                const selectedNoteSet = notes[floor(random(notes.length))];
+                selectedNote = selectedNoteSet[floor(random(selectedNoteSet.length))];
+                possibleHarmonies = harmonies[selectedNote] || 
+                    fallbackNotes.map(note => ({ note }));
+            } catch (error) {
+                // Absolute fallback if something goes wrong
+                selectedNote = fallbackNotes[floor(random(fallbackNotes.length))];
+                possibleHarmonies = [{ note: fallbackNotes[floor(random(fallbackNotes.length))] }];
+            }
+            
+            // Dynamically adjust master BPM
+            masterBPM = random(50, 140); // Random tempo between 80-140 BPM
+            Tone.Transport.bpm.value = masterBPM;
+            console.log(`New tempo: ${masterBPM} BPM`);
+            
+            // Recalculate beat duration
+            beatDuration = Tone.Time('4n').toSeconds();
+            
+            // Randomize volume slightly for more natural sound
+            const mainVolume = random(-12, -8);
+            primaryVolume.volume.value = mainVolume;
+            
+            // Ensure at least one note plays
+            synth.triggerAttackRelease(selectedNote, "8n");
+            console.log("Playing main note:", selectedNote, "at volume:", mainVolume);
+            
+            // Guarantee at least one harmony note
+            const harmonyCount = max(1, floor(random(1, 4)));
+            
+            // Track used harmony positions to avoid duplicates
+            const usedHarmonyPositions = new Set();
+            
+            // Play harmony notes with varied delays and positions
+            for (let i = 0; i < harmonyCount; i++) {
+                // Select a unique harmony
+                let selectedHarmony;
+                let attempts = 0;
+                do {
+                    if (attempts > 10) {
+                        selectedHarmony = possibleHarmonies[0];
+                        break;
+                    }
+                    selectedHarmony = possibleHarmonies[floor(random(possibleHarmonies.length))];
+                    attempts++;
+                } while (usedHarmonyPositions.has(selectedHarmony.note));
+                
+                usedHarmonyPositions.add(selectedHarmony.note);
+                
+                // Calculate delay based on master tempo
+                // Vary delay between 1/4 beat to 2 beats for more variation
+                const delayMultipliers = [0.25, 0.5, 1, 1.5, 2];
+                const delayMultiplier = delayMultipliers[floor(random(delayMultipliers.length))];
+                const delay = beatDuration * delayMultiplier * 1000; // convert to ms
+                
+                // Randomize volume for each harmony note
+                const harmonyVol = random(-20, -10);
+                
+                // Calculate harmony particle position
+                const angleFromMouse = random(TWO_PI);
+                const distanceFromMouse = random(50, 200); // Varied distance
+                
+                const harmonyX = mouseX + cos(angleFromMouse) * distanceFromMouse;
+                const harmonyY = mouseY + sin(angleFromMouse) * distanceFromMouse;
+                
+                // Play harmony note with delay
+                setTimeout(() => {
+                    // Set harmony volume
+                    harmonyVolume.volume.value = harmonyVol;
+                    
+                    // Ensure a note plays
+                    if (selectedHarmony && selectedHarmony.note) {
+                        harmonySynth.triggerAttackRelease(selectedHarmony.note, "8n");
+                        console.log(`Playing harmony note: ${selectedHarmony.note} at volume: ${harmonyVol}`);
+                        
+                        // Create a burst of harmony particles
+                        createParticleBurst(harmonyX, harmonyY, 100, true);
+                    }
+                }, delay);
+            }
+        }
+        
+        function windowResized() {
+            resizeCanvas(windowWidth, windowHeight);
+        }
+    </script>
+</body>
+</html>
