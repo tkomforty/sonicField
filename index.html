@@ -21,109 +21,13 @@
             color: #fff;
         }
 
-        /* Make the canvas fill the entire viewport and sit behind other content */
+        /* Make the canvas fill the entire viewport */
         canvas {
             display: block;
             position: fixed !important;
             top: 0 !important;
             left: 0 !important;
             z-index: 0 !important;
-        }
-
-        /* Overlay content - repositioned to left side with more transparency */
-        .content-overlay {
-            position: fixed;
-            z-index: 2;
-            height: 100vh;
-            width: 300px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            padding: 2rem;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            background-color: rgba(0, 0, 0, 0.3);
-            pointer-events: none;
-        }
-
-        /* Panel styling - more transparent than before */
-        .glass-panel {
-            background-color: rgba(5, 15, 35, 0.3);
-            backdrop-filter: blur(5px);
-            -webkit-backdrop-filter: blur(5px);
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-            padding: 1.5rem;
-            margin: 1rem 0;
-        }
-
-        /* Typography */
-        h1 {
-            font-size: 2.2rem;
-            margin-bottom: 0.5rem;
-            color: #3F51B5;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-        }
-
-        h2 {
-            font-size: 1.6rem;
-            margin-bottom: 1rem;
-            color: #3F51B5;
-        }
-
-        p {
-            margin-bottom: 0.8rem;
-            line-height: 1.6;
-            color: rgb(175,171,184);
-        }
-
-        /* Section styling */
-        header, footer {
-            width: 100%;
-            text-align: center;
-        }
-
-        .info-section {
-            display: flex;
-            justify-content: center;
-        }
-
-        /* Spacing between sections */
-        header, .info-section, footer {
-            margin-bottom: 1.5rem;
-        }
-
-        /* Animation for glass panels - subtle version */
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.1); }
-            70% { box-shadow: 0 0 0 8px rgba(255, 255, 255, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
-        }
-
-        .glass-panel {
-            animation: pulse 5s infinite;
-        }
-
-        /* Responsive design */
-        @media (max-width: 768px) {
-            .content-overlay {
-                width: 250px;
-                padding: 1rem;
-            }
-            
-            h1 {
-                font-size: 1.8rem;
-            }
-            
-            h2 {
-                font-size: 1.3rem;
-            }
-            
-            .glass-panel {
-                padding: 1rem;
-            }
         }
     </style>
     
@@ -132,36 +36,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
 </head>
 <body>
-    <!-- Content overlay -->
-    <div class="content-overlay">
-        <header>
-            <div class="glass-panel">
-                <h1>sonic field</h1>
-                <p>interactive audio/visual</p>
-            </div>
-        </header>
-        
-        <section class="info-section">
-            <div class="glass-panel">
-                <h2>move & explore</h2>
-                <p>click to generate bursts</p>
-              
-            </div>
-        </section>
-              <section class="info-section">
-            <div class="glass-panel">
-                <h2>tkomforty 2025</h2>
-               
-              
-            </div>
-        </section>
-        
-        <footer>
-         
-        </footer>
-    </div>
-  
-  <!-- Lightweight sketch -->
+    <!-- Lightweight sketch -->
     <script>
         let particles = [];
         const MAX_PARTICLES = 2000;
